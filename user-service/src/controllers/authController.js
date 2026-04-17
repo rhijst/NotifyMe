@@ -1,0 +1,61 @@
+const bcrypt = require('bcrypt');
+const User = require('../models/User');
+const { publishEvent } = require('../services/rabbitService');
+
+exports.login = async (req, res) => {
+    try {
+        const { email, password } = req.body;
+
+        const user = await User.findOne({ email });
+        if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+
+        const valid = await bcrypt.compare(password, user.password_hash);
+        if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
+
+        res.json({
+            id: user._id,
+            email: user.email,
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+exports.register = async (req, res) => {
+    try {
+        const { email, password } = req.body;
+
+        const exists = await User.findOne({ email });
+        if (exists) return res.status(409).json({ error: 'User exists' });
+
+        const hash = await bcrypt.hash(password, 10);
+
+        const user = await User.create({
+            email,
+            password_hash: hash,
+        });
+
+        await publishEvent('events', 'user.created', {
+            userId: user._id.toString(),
+            email: user.email,
+        });
+
+        res.status(201).json({
+            id: user._id,
+            email: user.email,
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+exports.getUserById = async (req, res) => {
+    try {
+        const user = await User.findById(req.params.userId);
+        if (!user) return res.status(404).json({ error: 'Not found' });
+
+        res.json({ email: user.email });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};

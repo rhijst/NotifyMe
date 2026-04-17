@@ -1,0 +1,12 @@
+services:
+  user-service:
+    build: .
+    ports:
+      - "3002:3002"
+    depends_on:
+      - mongo-user
+
+  mongo-user:
+    image: mongo:8
+    ports:
+      - "27018:27017"
