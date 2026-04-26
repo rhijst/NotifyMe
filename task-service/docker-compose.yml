@@ -11,6 +11,6 @@ services:
       - mongo-task
 
   mongo-task:
-    image: mongo:6
+    image: mongo:8
     ports:
       - "27017:27017"
