@@ -7,7 +7,7 @@ const router = express.Router();
 Login
 */
 router.post('/login', async (req, res) => {
-    console.log(req.body);
+    console.log("Login request:" + req.body);
     try {
         const response = await fetch(
             `${process.env.USER_SERVICE_URL}/auth/login`,
@@ -40,7 +40,7 @@ router.post('/login', async (req, res) => {
 });
 
 router.post('/register', async (req, res) => {
-    console.log(req.body);
+    console.log("Register request:" + req.body);
     try {
         const response = await fetch(
             `${process.env.USER_SERVICE_URL}/auth/register`,

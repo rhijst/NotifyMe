@@ -10,12 +10,11 @@ const app = express();
 Global middleware
 */
 app.use(corsMiddleware);
-app.use(express.json());
 
 /*
 Routes
 */
-app.use('/auth', authRoutes);
+app.use('/auth', express.json(), authRoutes);
 app.use('/', proxyRoutes);
 
 /*
