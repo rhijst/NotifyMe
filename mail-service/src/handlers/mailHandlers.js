@@ -17,6 +17,17 @@ async function handleDeadlineReminder(payload) {
     );
 }
 
+async function handleUserCreated(payload) {
+    if (!payload.email) throw new Error("Missing email");
+
+    await sendMail(
+        payload.email,
+        'Welcome to NotifyMe!',
+        `Hi there,\n\nWelcome to NotifyMe! Your account has been created successfully.\n\nYou can now log in and start managing your tasks.\n\nBest regards,\nThe NotifyMe Team`
+    );
+}
+
 module.exports = {
     handleDeadlineReminder,
+    handleUserCreated,
 };

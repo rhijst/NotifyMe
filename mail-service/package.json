@@ -1,7 +1,7 @@
 {
     "name": "mail-service",
     "version": "1.0.0",
-    "description": "Mail service for FotoSpeurtocht",
+    "description": "Mail service for NotifyMe",
     "main": "src/app.js",
     "scripts": {
         "start": "node src/app.js",
