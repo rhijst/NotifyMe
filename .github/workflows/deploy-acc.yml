@@ -1,0 +1,65 @@
+name: Deploy Acceptance Environment
+
+on:
+  pull_request:
+    branches: ["main"]
+    types: [opened, synchronize, reopened, closed]
+
+# Runs on the local machine that also hosts the Docker Swarm manager.
+# Each PR gets its own stack (notifyme-acc-pr<N>) with isolated data volumes.
+
+env:
+  IMAGE_TAG: pr-${{ github.event.number }}
+  STACK_NAME: notifyme-acc-pr${{ github.event.number }}
+
+jobs:
+  # ── Deploy on open / update ────────────────────────────────────────────────
+  deploy:
+    if: github.event.action != 'closed'
+    runs-on: self-hosted
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build images
+        run: |
+          docker build -t notifyme-api-gateway:${{ env.IMAGE_TAG }}  ./api-gateway
+          docker build -t notifyme-task-service:${{ env.IMAGE_TAG }} ./task-service
+          docker build -t notifyme-user-service:${{ env.IMAGE_TAG }} ./user-service
+          docker build -t notifyme-mail-service:${{ env.IMAGE_TAG }} ./mail-service
+
+      - name: Deploy acceptance stack
+        run: |
+          docker stack deploy \
+            --prune \
+            -c docker-stack.acc.yml \
+            ${{ env.STACK_NAME }}
+        env:
+          IMAGE_TAG: ${{ env.IMAGE_TAG }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          INTERNAL_SECRET: ${{ secrets.INTERNAL_SECRET }}
+          RABBITMQ_PASS: ${{ secrets.RABBITMQ_PASS }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+
+  # ── Teardown on close / merge ──────────────────────────────────────────────
+  teardown:
+    if: github.event.action == 'closed'
+    runs-on: self-hosted
+
+    steps:
+      - name: Remove acceptance stack and volumes
+        run: |
+          docker stack rm ${{ env.STACK_NAME }}
+          sleep 10
+          docker volume rm \
+            ${{ env.STACK_NAME }}_mongo-task-data \
+            ${{ env.STACK_NAME }}_mongo-user-data \
+            ${{ env.STACK_NAME }}_rabbitmq-data \
+            || true
+
+      - name: Remove acceptance images
+        run: |
+          docker rmi notifyme-api-gateway:${{ env.IMAGE_TAG }} || true
+          docker rmi notifyme-task-service:${{ env.IMAGE_TAG }} || true
+          docker rmi notifyme-user-service:${{ env.IMAGE_TAG }} || true
+          docker rmi notifyme-mail-service:${{ env.IMAGE_TAG }} || true

@@ -1,0 +1,36 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: ["main"]
+
+# Runs on the local machine that also hosts the Docker Swarm manager.
+# No registry needed — images are built and used directly on the same node.
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build images
+        run: |
+          docker build -t notifyme-api-gateway:main  ./api-gateway
+          docker build -t notifyme-task-service:main ./task-service
+          docker build -t notifyme-user-service:main ./user-service
+          docker build -t notifyme-mail-service:main ./mail-service
+          docker build -t notifyme-gui:main          ./gui
+
+      - name: Deploy production stack
+        run: |
+          docker stack deploy \
+            --prune \
+            -c docker-stack.prod.yml \
+            notifyme-prod
+        env:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          INTERNAL_SECRET: ${{ secrets.INTERNAL_SECRET }}
+          RABBITMQ_PASS: ${{ secrets.RABBITMQ_PASS }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          GRAFANA_PASSWORD: ${{ secrets.GRAFANA_PASSWORD }}

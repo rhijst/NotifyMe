@@ -1,0 +1,165 @@
+version: '3.8'
+
+networks:
+  notifyme:
+    driver: overlay
+
+volumes:
+  mongo-task-data:
+  mongo-user-data:
+  rabbitmq-data:
+  grafana-data:
+
+configs:
+  prometheus_config:
+    file: ./monitoring/prometheus.yml
+
+services:
+
+  # ── Application services ──────────────────────────────────────────────────
+
+  api-gateway:
+    image: notifyme-api-gateway:main
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: "3000"
+      JWT_SECRET: "${JWT_SECRET}"
+      INTERNAL_SECRET: "${INTERNAL_SECRET}"
+      TASK_SERVICE_URL: "http://task-service:3001"
+      USER_SERVICE_URL: "http://user-service:3002"
+    networks:
+      - notifyme
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+  task-service:
+    image: notifyme-task-service:main
+    environment:
+      PORT: "3001"
+      MONGO_URI: "mongodb://mongo-task:27017/taskdb"
+      INTERNAL_SECRET: "${INTERNAL_SECRET}"
+      RABBITMQ_URL: "amqp://user:${RABBITMQ_PASS}@rabbitmq:5672"
+    networks:
+      - notifyme
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+  user-service:
+    image: notifyme-user-service:main
+    environment:
+      PORT: "3002"
+      MONGO_URI: "mongodb://mongo-user:27017/userdb"
+      INTERNAL_SECRET: "${INTERNAL_SECRET}"
+      RABBITMQ_URL: "amqp://user:${RABBITMQ_PASS}@rabbitmq:5672"
+    networks:
+      - notifyme
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+  mail-service:
+    image: notifyme-mail-service:main
+    environment:
+      PORT: "3003"
+      INTERNAL_SECRET: "${INTERNAL_SECRET}"
+      RABBITMQ_URL: "amqp://user:${RABBITMQ_PASS}@rabbitmq:5672"
+      RESEND_API_KEY: "${RESEND_API_KEY}"
+    networks:
+      - notifyme
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+  gui:
+    image: notifyme-gui:main
+    ports:
+      - "8080:80"
+    networks:
+      - notifyme
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+  # ── Data services (volumes keep data outside containers) ──────────────────
+
+  mongo-task:
+    image: mongo:8
+    volumes:
+      - mongo-task-data:/data/db
+    networks:
+      - notifyme
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints:
+          - node.role == manager
+
+  mongo-user:
+    image: mongo:8
+    volumes:
+      - mongo-user-data:/data/db
+    networks:
+      - notifyme
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints:
+          - node.role == manager
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: "user"
+      RABBITMQ_DEFAULT_PASS: "${RABBITMQ_PASS}"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    networks:
+      - notifyme
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints:
+          - node.role == manager
+
+  # ── Monitoring ─────────────────────────────────────────────────────────────
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    configs:
+      - source: prometheus_config
+        target: /etc/prometheus/prometheus.yml
+    networks:
+      - notifyme
+    deploy:
+      replicas: 1
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3030:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_PASSWORD:-admin}"
+    volumes:
+      - grafana-data:/var/lib/grafana
+    networks:
+      - notifyme
+    deploy:
+      replicas: 1
